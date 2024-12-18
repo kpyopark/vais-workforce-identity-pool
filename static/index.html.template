@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook 로그인 & 검색 데모</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #1877f2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #profile {
+            margin-top: 20px;
+            text-align: center;
+        }
+        #profile img {
+            border-radius: 50%;
+            margin-bottom: 10px;
+        }
+        #searchSection {
+            display: none;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 600px;
+        }
+    </style>
+    <!-- Search Widget JavaScript -->
+    <script src="https://cloud.google.com/ai/gen-app-builder/client?hl=en_US"></script>
+</head>
+<body>
+    <h1>Facebook 로그인 & 검색 데모</h1>
+
+    <div id="fb-root"></div>
+    <div id="status"></div>
+    <button onclick="loginWithFacebook()">Facebook으로 로그인</button>
+    <div id="profile"></div>
+
+    <div id="searchSection">
+        <gen-search-widget 
+            configId='SEARCH_CONFIG_ID'
+            triggerId="searchWidgetTrigger">
+        </gen-search-widget>
+        <input placeholder="Search here" id="searchWidgetTrigger" />
+    </div>
+
+    <script>
+        // Facebook SDK 초기화
+        window.fbAsyncInit = function() {
+            FB.init({
+                appId: 'FACEBOOK_APP_ID',
+                cookie: true,
+                xfbml: true,
+                version: 'v21.0'
+            });
+
+            FB.getLoginStatus(function(response) {
+                statusChangeCallback(response);
+            });
+        };
+
+        // Facebook SDK 로드
+        (function(d, s, id) {
+            var js, fjs = d.getElementsByTagName(s)[0];
+            if (d.getElementById(id)) return;
+            js = d.createElement(s);
+            js.id = id;
+            js.src = "https://connect.facebook.net/ko_KR/sdk.js";
+            fjs.parentNode.insertBefore(js, fjs);
+        }(document, 'script', 'facebook-jssdk'));
+
+        // 로그인 상태 변경 처리
+        function statusChangeCallback(response) {
+            const status = document.getElementById('status');
+            const profile = document.getElementById('profile');
+            const searchSection = document.getElementById('searchSection');
+
+            if (response.status === 'connected') {
+                status.innerHTML = '로그인됨';
+                status.style.backgroundColor = '#e7f3ff';
+                fetchUserProfile();
+                // Get GCP token after successful login
+                getGCPToken(response.authResponse.accessToken);
+            } else {
+                status.innerHTML = '로그인되지 않음';
+                status.style.backgroundColor = '#ffebe8';
+                profile.innerHTML = '';
+                searchSection.style.display = 'none';
+            }
+        }
+
+        // Facebook 로그인
+        function loginWithFacebook() {
+            FB.login(function(response) {
+                statusChangeCallback(response);
+            }, {scope: 'public_profile'});
+        }
+
+        // 사용자 프로필 정보 가져오기
+        function fetchUserProfile() {
+            FB.api('/me', {fields: 'name,picture.width(150)'}, function(response) {
+                const profile = document.getElementById('profile');
+                profile.innerHTML = `
+                    <img src="${response.picture.data.url}" alt="프로필 사진">
+                    <h3>${response.name}</h3>
+                `;
+            });
+        }
+
+        // GCP 토큰 가져오기
+        async function getGCPToken(fbToken) {
+            try {
+                const response = await fetch('/get_gcp_token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ fb_token: fbToken })
+                });
+                
+                const data = await response.json();
+                if (data.token) {
+                    const searchWidget = document.querySelector('gen-search-widget');
+                    searchWidget.authToken = data.token;
+                    document.getElementById('searchSection').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error getting GCP token:', error);
+            }
+        }
+    </script>
+</body>
+</html>
